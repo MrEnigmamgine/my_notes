@@ -1,3 +1,11 @@
+import numpy as np
+import pandas as pd
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import seaborn as sns
+import datetime
+
+
 '''  get_db_url()
 TODO: support multiple keys EG. user= OR username=
 
@@ -21,7 +29,7 @@ def get_db_url(database, username='', password='', hostname='', env=''):
             (key, value) = line.split('=')
             d[key] = value.replace('\n', '').replace("'",'').replace('"','')
         username = d['username']
-        hostname = d['hostname'] | d['host']
+        hostname = d['hostname']
         password = d['password']
     url = f'mysql+pymysql://{username}:{password}@{hostname}/{database}'
     return url
