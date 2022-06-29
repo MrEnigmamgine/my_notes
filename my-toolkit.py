@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
+from scipy import stats
 import datetime
 
 
@@ -45,3 +46,22 @@ def as_currency(amount):
         return '${:,.2f}'.format(amount)
     else:
         return '-${:,.2f}'.format(-amount)
+
+
+# Prettify chi^2 test
+
+def chi2_test(df, alpha=0.05):
+    chi2, p, degf, expected = stats.chi2_contingency(df)
+    print('Observed\n')
+    print(df.values)
+    print('---\nExpected\n')
+    print(expected.astype(int))
+    print('---\n')
+    print(f'chi^2 = {chi2:.4f}')
+    print(f'degf = {degf}')
+    print(f'p     = {p:.4f}')
+    print('---\n')
+    if p < alpha:
+        print("We reject the null hypothesis")
+    else:
+        print("We fail to reject the null hypothesis")
