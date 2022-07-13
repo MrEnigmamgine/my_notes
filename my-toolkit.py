@@ -12,22 +12,21 @@ import sklearn as sk
 import sklearn.model_selection as skm
 
 
-'''  get_db_url()
-TODO: support multiple keys EG. user= OR username=
+def get_db_url(database, hostname='', username='', password='', env=''):
+    '''Creates a URL for a specific database and credential set to be used with pymysql.
 
-Examples:
-# Using the env = argument
+    Can be used either with a set of credentials passed directly to the function or with an environment file containing the credentials.
+    If both are provided, the environment file takes precedence.
 
-get_db_url('employees',env='./env.py')
+    Parameters:
+    database (str): The target database that pymysql will connect to, which will provide context for any SQL queries used in the connection.
+    hostname (str): The DNS hostname or IP-Adress for the connection
+    username (str), password (str): User credentials that will be used in a sql connection.
+    env (str): Relative path to an environment file.  The file must include the hostname, username, and password variables.
 
-# Using positional arguments
-
-from env import host, username, password
-get_db_url('employees',username,password,host)
-
-'''
-
-def get_db_url(database, username='', password='', hostname='', env=''):
+    Returns:
+    str: Full URL for use with a pymysql connection
+    '''
     if env != '':
         d = {}
         file = open(env)
