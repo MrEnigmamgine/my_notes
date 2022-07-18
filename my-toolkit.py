@@ -1,5 +1,9 @@
+# Core modules
+import os
 import numpy as np
 import pandas as pd
+
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -9,10 +13,29 @@ from pydataset import data
 
 # SKLearn
 import sklearn as sk
-import sklearn.model_selection as skm
+from sklearn.model_selection import train_test_split
 
+#####################################################
+#               CONFIG VARIABLES                    #
+#####################################################
 
-def get_db_url(database, hostname='', username='', password='', env=''):
+ENVFILE = './env'
+CSV='./data.csv'
+
+SEED = 8
+
+DB= ''
+SQLquery ="""
+
+"""
+
+FEATURES = []
+TARGETS = []
+#####################################################
+#               END CONFIG VARIABLES                #
+#####################################################
+
+def get_db_url(database, hostname='', username='', password='', env='./env.py'):
     '''Creates a URL for a specific database and credential set to be used with pymysql.
 
     Can be used either with a set of credentials passed directly to the function or with an environment file containing the credentials.
@@ -38,6 +61,12 @@ def get_db_url(database, hostname='', username='', password='', env=''):
         password = d['password']
     url = f'mysql+pymysql://{username}:{password}@{hostname}/{database}'
     return url
+
+def new_data():
+    """Downloads a copy of data from CodeUp's SQL Server"""
+    url = get_db_url(DB,env=ENVFILE)
+    df = pd.read_sql(SQLquery, url)
+    return df
 
 # Easily load a google sheet (first tab only)
 def read_google(url):
@@ -75,21 +104,50 @@ def chi2_test(df, alpha=0.05):
     else:
         print("We fail to reject the null hypothesis")
 
+def get_data():
+    """Returns an uncleaned copy of the telco data from telco.csv.
+    If the file does not exist, grabs a new copy and creates the file.
+    """
+    filename = CSV
+    
+    # if file is available locally, read it
+    if os.path.isfile(filename):
+        return pd.read_csv(filename, index_col=0)
+    
+    # if file not available locally, acquire data from SQL database
+    # and write it as csv locally for future use
+    else:
+        # read the SQL query into a dataframe
+        df = new_data()
+        
+        # Write that dataframe to disk for later. Called "caching" the data for later.
+        df.to_csv(filename)
+
+        # Return the dataframe to the calling code
+        return df  
+
+def get_data_dropna():
+    """Returns a dataframe free of null values where the columns have the proper dtypes"""
+    df = get_data()
+    df = df.dropna()
+    df = df.convert_dtypes()
+    return df
 
 ## Generic split data function
-def train_validate_test_split(df, seed=123, stratify=None):
+def train_validate_test_split(df, seed=SEED, stratify=None):
+    """Splits data 60%/20%/20%"""
     # First split off our testing data.
-    train_and_validate, test = skm.train_test_split(
+    train, test_validate = train_test_split(
         df, 
-        test_size=0.2, 
+        test_size=3/5, 
         random_state=seed, 
         stratify=( df[stratify] if stratify else None)
     )
     # Then split the remaining into train/validate data.
-    train, validate = skm.train_test_split(
-        train_and_validate,
-        test_size=0.3,
+    test, validate = train_test_split(
+        test_validate,
+        test_size=1/2,
         random_state=seed,
-        stratify= (train_and_validate[stratify] if stratify else None)
+        stratify= (test_validate[stratify] if stratify else None)
     )
-    return train, validate, test
+    return train, test, validate
