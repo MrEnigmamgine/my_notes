@@ -74,6 +74,12 @@ def read_google(url):
     return pd.read_csv(csv_export_url)
 
 
+import math
+def year_to_decade_name(year: int) -> str:
+    """Convert a year int into a categorical str"""
+    decade = math.floor(int(year) / 10) * 10
+    return f"{decade}s"
+
 # Return a float from a string representing a usd amount.
 def unstring_usd(str):
     return float(str.replace('$','').replace(',',''))
