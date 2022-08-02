@@ -69,20 +69,16 @@ def get_data():
     If the file does not exist, grabs a new copy and creates the file.
     """
     filename = CSV
-    
     # if file is available locally, read it
     if os.path.isfile(filename):
         return pd.read_csv(filename, index_col=0)
-    
     # if file not available locally, acquire data from SQL database
     # and write it as csv locally for future use
     else:
         # read the SQL query into a dataframe
         df = new_data()
-        
         # Write that dataframe to disk for later. Called "caching" the data for later.
         df.to_csv(filename)
-
         # Return the dataframe to the calling code
         return df  
 
