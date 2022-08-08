@@ -85,24 +85,28 @@ def cat_to_colors(s):
 
 # Easily load a google sheet (first tab only)
 def read_google(url):
+    """Copy paste the browser URL into this function and it will automagically put the first tab into pandas."""
     csv_export_url = url.replace('/edit#gid=', '/export?format=csv&gid=')
     return pd.read_csv(csv_export_url)
 
 
 def get_db_url(database):
+    """Formats a SQL url by using the env.py file to store credentials."""
     from env import host, user, password
     url = f'mysql+pymysql://{user}:{password}@{host}/{database}'
     return url
 
 def new_data():
-    """Downloads a copy of data from CodeUp's SQL Server"""
+    """Downloads a copy of data from a SQL Server.
+    Relies on an env.py file and the configuration of the DB and SQLQUERY variables."""
     url = get_db_url(DB)
     df = pd.read_sql(SQLQUERY, url)
     return df
 
 def get_data():
-    """Returns an uncleaned copy of the telco data from telco.csv.
+    """Returns an uncleaned copy of the data from the CSV file defined in config.
     If the file does not exist, grabs a new copy and creates the file.
+    Assumes the use of a SQL query.
     """
     filename = CSV
     # if file is available locally, read it
@@ -136,6 +140,7 @@ def dropna_df(df):
     return df
 
 def handle_missing_values(df, drop_cols_threshold=0.75, drop_rows_threshold=0.75):
+    """Given a dataframe and some thresholds, trims the dataframe so that any column or row with too many null values is dropped."""
     threshold = int(round(drop_cols_threshold * len(df.index), 0))
     df = df.dropna(axis=1, thresh=threshold) # axis 1, or ‘columns’ : Drop columns which contain missing value
     threshold = int(round(drop_rows_threshold * len(df.columns), 0))
@@ -194,6 +199,7 @@ def col_summary(df):
     return out
 
 def nulls_by_row(df):
+    """Classroom dictated function. Yet to find a use-case for it."""
     num_missing = df.isnull().sum(axis=1)
     prcnt_miss = num_missing / df.shape[1] * 100
     rows_missing = pd.DataFrame({'num_cols_missing': num_missing, 'percent_cols_missing': prcnt_miss})
@@ -203,6 +209,7 @@ def nulls_by_row(df):
     return rows_missing.sort_values(by='num_cols_missing', ascending=False)
 
 def get_gotchas(df, cat_threshold=10):
+    """Given a df, tries to identify potential problems in the data that might need addressed."""
     out = {
         'possible_ids': [],
         'possible_bools': [],
@@ -220,6 +227,7 @@ def get_gotchas(df, cat_threshold=10):
     return out
 
 def all_the_hist(df):
+    """Plots a histogram for every column of a DF into one figure."""
     import math
     vizcols = 5
     vizrows = math.ceil(len(df.columns)/vizcols)
@@ -311,6 +319,8 @@ def train_validate_test_split(df, seed=SEED, stratify=None):
     return train, test, validate
 
 def train_scaler(df, kind='min_max'):
+    """Quickly build a scaler without worrying about importing the right thing.
+    Will fit to the entire dataframe so you should only pass the columns you wish to scale."""
     match kind:
         case 'min_max':
             from sklearn.preprocessing import MinMaxScaler
@@ -322,6 +332,7 @@ def train_scaler(df, kind='min_max'):
     return scaler
 
 def scale_df(df, scaler):
+    """Same as scaler.transform(), but returns a dataframe with index and columns preserved."""
     X = pd.DataFrame(scaler.transform(df), index=df.index, columns=df.columns )
     return X
 
@@ -361,11 +372,14 @@ def drop_upper_and_lower_outliers(df, cols, k=1.5):
 #####################################################
 
 def scatter_vs_target(df, target, cat=None):
+    """Plots a target variable against ever other variable.
+    Blanket exploration function."""
     for col in df:
         sns.scatterplot(data=df, x=col, y=target, hue=cat)
         plt.show()
 
 def anova_variance_in_target_for_cat(df, target, cat, alpha=0.5):
+    """Quickly test a target against the categories in another column."""
     from scipy.stats import f_oneway
     s= df[cat]
     vals = s.sort_values().unique()
@@ -478,7 +492,7 @@ class BaselineRegressor:
         return np.full((n_predictions), self.baseline)
 
 def regression_metrics(actual: pd.Series, predicted: pd.Series) -> dict:
-
+    """Standardises the evaluation of a model's metrics."""
     from sklearn import metrics
     y = actual
     yhat = predicted
@@ -496,6 +510,7 @@ def regression_metrics(actual: pd.Series, predicted: pd.Series) -> dict:
     return error_metrics
 
 def plot_residuals(actual, predicted):
+    """Plots the residuals of a model's predictions."""
     yhat = predicted
     resid_p = actual - yhat
 
