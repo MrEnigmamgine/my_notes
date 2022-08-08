@@ -20,9 +20,9 @@ import sklearn as sk
 from sklearn.model_selection import train_test_split
 
 # Pandas Options
-pd.options.display.max_columns = None
-pd.options.display.max_rows = 70
-pd.options.display.float_format = '{:20,.2f}'.format
+# pd.options.display.max_columns = None
+# pd.options.display.max_rows = 70
+# pd.options.display.float_format = '{:20,.2f}'.format
 
 #####################################################
 #               CONFIG VARIABLES                    #
@@ -64,26 +64,17 @@ def as_currency(amount):
 def format_float(x):
     return float("{:.2f}".format(x))
 
-#####################################################
-#               STATISTICS SNIPPETS                 #
-#####################################################
+def get_n_colors(n, palette='bright'):
+    colors = []
+    for i in range(n):
+        colors.append(sns.color_palette(palette=palette)[i])
+    return colors
 
-# Prettify chi^2 test
-def chi2_test(df, alpha=0.05):
-    chi2, p, degf, expected = stats.chi2_contingency(df)
-    print('Observed\n')
-    print(df.values)
-    print('---\nExpected\n')
-    print(expected.astype(int))
-    print('---\n')
-    print(f'chi^2 = {chi2:.4f}')
-    print(f'degf = {degf}')
-    print(f'p     = {p:.4f}')
-    print('---\n')
-    if p < alpha:
-        print("We reject the null hypothesis")
-    else:
-        print("We fail to reject the null hypothesis")
+def cat_to_colors(s):
+    cats = s.value_counts().index.to_list()
+    colors = get_n_colors(len(cats))
+    x = s.apply(lambda x: colors[cats.index(x)])
+    return x
 
 
 #####################################################
@@ -211,10 +202,11 @@ def nulls_by_row(df):
                         right_index=True)[['parcelid', 'num_cols_missing', 'percent_cols_missing']]
     return rows_missing.sort_values(by='num_cols_missing', ascending=False)
 
-def get_gotchas(df):
+def get_gotchas(df, cat_threshold=10):
     out = {
         'possible_ids': [],
-        'possible_bools': []
+        'possible_bools': [],
+        'probable_categories': []
         }
     summary = col_summary(df)
     for name, row in summary.iterrows():
@@ -222,6 +214,8 @@ def get_gotchas(df):
             out['possible_ids'].append(name)
         if row.loc['n_unique'] in [1,2]:
             out['possible_bools'].append(name)
+        if row.loc['n_unique'] < cat_threshold:
+            out['probable_categories'].append(name)
 
     return out
 
@@ -316,16 +310,19 @@ def train_validate_test_split(df, seed=SEED, stratify=None):
     )
     return train, test, validate
 
-def train_scaler(df, cols, kind='min_max'):
+def train_scaler(df, kind='min_max'):
     match kind:
         case 'min_max':
             from sklearn.preprocessing import MinMaxScaler
             scaler = MinMaxScaler()
-    scaler.fit(df[cols])
+        case 'robust':
+            from sklearn.preprocessing import RobustScaler
+            scaler = RobustScaler()
+    scaler.fit(df)
     return scaler
 
-def scale_df(df, cols, scaler):
-    X = pd.DataFrame(scaler.transform(df[cols]), index=df.index, columns=df[cols].columns )
+def scale_df(df, scaler):
+    X = pd.DataFrame(scaler.transform(df), index=df.index, columns=df.columns )
     return X
 
 def drop_upper_outliers(df, cols, k=1.5):
@@ -359,3 +356,153 @@ def drop_upper_and_lower_outliers(df, cols, k=1.5):
         df = df[(df[col] < upper_bound) & (df[col] > lower_bound)]
     return df
 
+#####################################################
+#                  DATA EXPLORATION                 #
+#####################################################
+
+def scatter_vs_target(df, target, cat=None):
+    for col in df:
+        sns.scatterplot(data=df, x=col, y=target, hue=cat)
+        plt.show()
+
+def anova_variance_in_target_for_cat(df, target, cat, alpha=0.5):
+    from scipy.stats import f_oneway
+    s= df[cat]
+    vals = s.sort_values().unique()
+    subsets = [df[s == vals[x]][target] for x, v in enumerate(vals)]
+    stat, p = f_oneway(*subsets)
+    result={'reject': p < alpha,
+            'h0' : f"There is no variance in {target} between subsets of {cat}",
+            'stat_name': 'F',
+            'stat': stat,
+            'p_value': p,
+            'alpha': alpha
+        }
+    return result
+
+
+#####################################################
+#                DATA MODEL PREPPING                #
+#####################################################
+
+def build_kmeans_clusterer(df, cols, k):
+    from sklearn.cluster import KMeans
+    clusterer = KMeans(n_clusters=k)
+    clusterer.fit(df[cols])
+    return clusterer
+
+def get_kmeans_clusters(df, cols, k=5, clusterer=None):
+    if clusterer == None:
+        from sklearn.cluster import KMeans
+        clusterer = KMeans(n_clusters=k)
+        clusterer.fit(df[cols])
+    s = clusterer.predict(df[cols])
+    return s
+
+
+def find_k(df, cluster_vars, k_range, seed=SEED):
+    from sklearn.cluster import KMeans
+    sse = []
+    for k in k_range:
+        kmeans = KMeans(n_clusters=k, random_state=seed)
+
+        # X[0] is our df dataframe..the first dataframe in the list of dataframes stored in X. 
+        kmeans.fit(df[cluster_vars])
+
+        # inertia: Sum of squared distances of samples to their closest cluster center.
+        sse.append(kmeans.inertia_) 
+
+    # compute the difference from one k to the next
+    delta = [round(sse[i] - sse[i+1],0) for i in range(len(sse)-1)]
+
+    # compute the percent difference from one k to the next
+    pct_delta = [round(((sse[i] - sse[i+1])/sse[i])*100, 1) for i in range(len(sse)-1)]
+
+    # create a dataframe with all of our metrics to compare them across values of k: SSE, delta, pct_delta
+    k_comparisons_df = pd.DataFrame(dict(k=k_range[0:-1], 
+                             sse=sse[0:-1], 
+                             delta=delta, 
+                             pct_delta=pct_delta))
+
+    # plot k with inertia
+    plt.plot(k_comparisons_df.k, k_comparisons_df.sse, 'bx-')
+    plt.xlabel('k')
+    plt.ylabel('SSE')
+    plt.title('The Elbow Method to find the optimal k\nFor which k values do we see large decreases in SSE?')
+    plt.show()
+
+    # plot k with pct_delta
+    plt.plot(k_comparisons_df.k, k_comparisons_df.pct_delta, 'bx-')
+    plt.xlabel('k')
+    plt.ylabel('Percent Change')
+    plt.title('For which k values are we seeing increased changes (%) in SSE?')
+    plt.show()
+
+    # plot k with delta
+    plt.plot(k_comparisons_df.k, k_comparisons_df.delta, 'bx-')
+    plt.xlabel('k')
+    plt.ylabel('Absolute Change in SSE')
+    plt.title('For which k values are we seeing increased changes (absolute) in SSE?')
+    plt.show()
+
+    return k_comparisons_df
+
+
+#####################################################
+#                  MODEL EVALUATION                 #
+#####################################################
+
+class BaselineRegressor:
+    """ A simple class meant to mimic sklearn's modeling methods so that I can standardize my workflow.
+    Assumes that you are fitting a single predictor.  
+    For multiple predictors you will need multiple instances of this class.
+    
+    TODO: Handle multi-dimensional predictors
+    TODO: Handle saving feature names
+    """
+    def __init__(self):
+        """This isn't needed, but I'm leaving this here to remind myself that it's a thing."""
+        pass
+
+
+    def fit(self, y):
+        """Calculates the mean for the target variable and assigns it to this instance."""
+        if len(y.shape) == 1:
+            self.baseline = y.mean()
+        else:
+             raise ValueError('Expected a 1 dimensional array.')
+
+    def predict(self, x):
+        """Always predicts the mean value."""
+        n_predictions = len(x)
+        return np.full((n_predictions), self.baseline)
+
+def regression_metrics(actual: pd.Series, predicted: pd.Series) -> dict:
+
+    from sklearn import metrics
+    y = actual
+    yhat = predicted
+    resid_p = y - yhat
+    sum_of_squared_errors = (resid_p**2).sum()
+    error_metrics = {
+        'max_error': metrics.max_error(actual, predicted),
+        'sum_squared_error' : sum_of_squared_errors,
+        'mean_squared_error' : metrics.mean_squared_error(actual, predicted),
+        'root_mean_squared_error' : metrics.mean_squared_error(actual, predicted, squared=False),
+        'mean_aboslute_error' : metrics.mean_absolute_error(actual, predicted),
+        'r2_score' : metrics.r2_score(actual, predicted, force_finite=False)
+    }
+
+    return error_metrics
+
+def plot_residuals(actual, predicted):
+    yhat = predicted
+    resid_p = actual - yhat
+
+    fig, ax1 = plt.subplots(1, 1, constrained_layout=True, sharey=True, figsize=(7,4))
+    ax1.set_title('Predicted Residuals')
+    ax1.set_ylabel('Error')
+    ax1.set_xlabel('Predicted Value')
+    ax1.ticklabel_format(useOffset=False, style='plain')
+    ax1.scatter(x=yhat, y=resid_p)
+    plt.show()
