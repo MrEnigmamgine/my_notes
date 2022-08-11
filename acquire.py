@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 #               CONFIG VARIABLES                    #
 #####################################################
 
-ENVFILE = './env'
+ENVFILE = './env.py'
 CSV='./data.csv'
 
 SEED = 8
@@ -100,3 +100,8 @@ def train_validate_test_split(df, seed=SEED, stratify=None):
         stratify= (test_validate[stratify] if stratify else None)
     )
     return train, test, validate
+
+
+#####################################################
+#              DATA SPECIFIC FUNCTIONS              #
+#####################################################

@@ -45,6 +45,11 @@ SQLQUERY ="""
 #               FORMATTING TRICKS                   #
 #####################################################
 
+def clean(varStr): 
+    """Converts a string into a valid python identifier"""
+    import re
+    return re.sub('\W|^(?=\d)','_', varStr).lower()
+
 def year_to_decade_name(year: int) -> str:
     """Convert a year int into a categorical str"""
     decade = math.floor(int(year) / 10) * 10
