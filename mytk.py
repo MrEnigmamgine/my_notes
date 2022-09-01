@@ -42,47 +42,6 @@ SQLQUERY ="""
 #####################################################
 
 #####################################################
-#               FORMATTING TRICKS                   #
-#####################################################
-
-def clean(varStr): 
-    """Converts a string into a valid python identifier"""
-    import re
-    return re.sub('\W|^(?=\d)','_', varStr).lower()
-
-def year_to_decade_name(year: int) -> str:
-    """Convert a year int into a categorical str"""
-    decade = math.floor(int(year) / 10) * 10
-    return f"{decade}s"
-
-# Return a float from a string representing a usd amount.
-def unstring_usd(str):
-    return float(str.replace('$','').replace(',',''))
-
-# Return a USD formatted string from a float.
-def as_currency(amount):
-    if amount >= 0:
-        return '${:,.2f}'.format(amount)
-    else:
-        return '-${:,.2f}'.format(-amount)
-
-def format_float(x):
-    return float("{:.2f}".format(x))
-
-def get_n_colors(n, palette='bright'):
-    colors = []
-    for i in range(n):
-        colors.append(sns.color_palette(palette=palette)[i])
-    return colors
-
-def cat_to_colors(s):
-    cats = s.value_counts().index.to_list()
-    colors = get_n_colors(len(cats))
-    x = s.apply(lambda x: colors[cats.index(x)])
-    return x
-
-
-#####################################################
 #                   DATA GETTING                    #
 #####################################################
 
@@ -94,38 +53,6 @@ def read_google(url):
     csv_export_url = url.replace('/edit#gid=', '/export?format=csv&gid=')
     return pd.read_csv(csv_export_url)
 
-
-def get_db_url(database):
-    """Formats a SQL url by using the env.py file to store credentials."""
-    from env import host, user, password
-    url = f'mysql+pymysql://{user}:{password}@{host}/{database}'
-    return url
-
-def new_data():
-    """Downloads a copy of data from a SQL Server.
-    Relies on an env.py file and the configuration of the DB and SQLQUERY variables."""
-    url = get_db_url(DB)
-    df = pd.read_sql(SQLQUERY, url)
-    return df
-
-def get_data():
-    """Returns an uncleaned copy of the data from the CSV file defined in config.
-    If the file does not exist, grabs a new copy and creates the file.
-    Assumes the use of a SQL query.
-    """
-    filename = CSV
-    # if file is available locally, read it
-    if os.path.isfile(filename):
-        return pd.read_csv(filename, index_col=0)
-    # if file not available locally, acquire data from SQL database
-    # and write it as csv locally for future use
-    else:
-        # read the SQL query into a dataframe
-        df = new_data()
-        # Write that dataframe to disk for later. Called "caching" the data for later.
-        df.to_csv(filename)
-        # Return the dataframe to the calling code
-        return df  
 
 #####################################################
 #                   DATA PREPPING                   #
@@ -210,7 +137,7 @@ def nulls_by_row(df):
     rows_missing = pd.DataFrame({'num_cols_missing': num_missing, 'percent_cols_missing': prcnt_miss})
     rows_missing = df.merge(rows_missing,
                         left_index=True,
-                        right_index=True)[['parcelid', 'num_cols_missing', 'percent_cols_missing']]
+                        right_index=True)[['num_cols_missing', 'percent_cols_missing']]
     return rows_missing.sort_values(by='num_cols_missing', ascending=False)
 
 def get_gotchas(df, cat_threshold=10):
@@ -231,6 +158,28 @@ def get_gotchas(df, cat_threshold=10):
 
     return out
 
+def get_column_types(df, override_categorical=[], override_numerical=[]):
+
+    cat_cols = df.select_dtypes(include=['object','category','bool']).columns.tolist()
+    num_cols = df.select_dtypes(exclude=['object','category','bool']).columns.tolist()
+
+    for val in override_categorical:
+        if val in num_cols:
+            num_cols.remove(val)
+            cat_cols.append(val)
+    for val in override_numerical:
+        if val in cat_cols:
+            cat_cols.remove(val)
+            num_cols.append(val)
+            
+    # cat_cols.sort()
+    # num_cols.sort()
+    out = {
+        'cat': cat_cols,
+        'num': num_cols
+    }
+    return out
+
 def all_the_hist(df):
     """Plots a histogram for every column of a DF into one figure."""
     import math
@@ -245,7 +194,7 @@ def all_the_hist(df):
     fig
 
 
-def get_upper_outliers(s, k=1.5):
+def get_upper_outliers(s, k=1.5, bound=False):
     '''
     Given a series and a cutoff value, k, returns the upper outliers for the
     series.
@@ -256,9 +205,11 @@ def get_upper_outliers(s, k=1.5):
     q1, q3 = s.quantile([.25, .75])
     iqr = q3 - q1
     upper_bound = q3 + k * iqr
+    if bound:
+        return upper_bound
     return s.apply(lambda x: max([x - upper_bound, 0]))
 
-def get_lower_outliers(s, k=1.5):
+def get_lower_outliers(s, k=1.5, bound=False):
     '''
     Given a series and a cutoff value, k, returns the lower outliers for the
     series.
@@ -269,6 +220,8 @@ def get_lower_outliers(s, k=1.5):
     q1, q3 = s.quantile([.25, .75])
     iqr = q3 - q1
     lower_bound = q1 - k * iqr
+    if bound:
+        return lower_bound
     return s.apply(lambda x: min([x - lower_bound, 0]))
 
 
@@ -305,19 +258,20 @@ def build_all_outliers(df, k=1.5):
 #####################################################
 
 ## Generic split data function
-def train_validate_test_split(df, seed=SEED, stratify=None):
+def train_test_validate_split(df, seed=SEED, stratify=None):
     """Splits data 60%/20%/20%"""
+    from sklearn.model_selection import train_test_split
     # First split off our testing data.
     train, test_validate = train_test_split(
         df, 
-        test_size=3/5, 
+        train_size=3/5, 
         random_state=seed, 
         stratify=( df[stratify] if stratify else None)
     )
     # Then split the remaining into train/validate data.
     test, validate = train_test_split(
         test_validate,
-        test_size=1/2,
+        train_size=1/2,
         random_state=seed,
         stratify= (test_validate[stratify] if stratify else None)
     )
@@ -383,7 +337,7 @@ def scatter_vs_target(df, target, cat=None):
         sns.scatterplot(data=df, x=col, y=target, hue=cat)
         plt.show()
 
-def anova_variance_in_target_for_cat(df, target, cat, alpha=0.5):
+def anova_variance_in_target_for_cat(df, target, cat, alpha=0.05):
     """Quickly test a target against the categories in another column."""
     from scipy.stats import f_oneway
     s= df[cat]
@@ -398,6 +352,149 @@ def anova_variance_in_target_for_cat(df, target, cat, alpha=0.5):
             'alpha': alpha
         }
     return result
+
+def ttest_target_for_each_cat(df, target, cat, alpha=0.05):
+    """Quickly test each category subset against the overall mean to identify which categories are signficant."""
+    from scipy.stats import ttest_1samp
+    s= df[cat]
+    vals = s.sort_values().unique()
+    subsets = [df[s == vals[x]][target] for x, v in enumerate(vals)]
+    mean = df[target].mean()
+    out = {}
+    for i, subset in enumerate(subsets):
+        stat, p = ttest_1samp(subset, mean)
+        result={'reject': p < alpha,
+                'h0' : f"The mean of {target} for {cat}:{vals[i]} is the same as the overall population",
+                'stat_name': 'F',
+                'stat': stat,
+                'p_value': p,
+                'alpha': alpha
+            }
+        out[str(vals[i])] = result
+    return out
+
+def chi2_test(s1, s2, alpha=0.05):
+    """Quickly determine if two samples are dependent of one another."""
+    from scipy.stats import chi2_contingency
+    table = pd.crosstab(s1, s2)
+    stat, p, dof, expected = chi2_contingency(table)
+    result={
+        'reject': p < alpha,
+        'h0' : f"The two samples are independent.",
+        'stat_name': 'Chi2',
+        'stat': stat,
+        'p_value': p,
+        'alpha': alpha,
+        # 'misc' : {
+            # 'dof' : dof,
+            # 'expected': expected,
+            # 'observed': table
+            # }
+        }
+    return result
+
+def spearman_correllation_test(df, x, y, alpha=0.05):
+    from scipy.stats import spearmanr
+
+    stat, p = spearmanr(df[x], df[y])
+    result={'reject': p < alpha,
+        'h0' : f"The samples of '{x}' and '{y}' are independant",
+        'stat_name': 'correlation',
+        'stat': stat,
+        'p_value': p,
+        'alpha': alpha
+    }
+    return result
+
+def shapiro_gausian_test(s, alpha=0.05):
+    from scipy.stats import shapiro
+
+    stat, p = stat, p = shapiro(s)
+    result={'reject': p < alpha,
+        'h0' : f"The distribution is gaussian",
+        'stat_name': 'statistic',
+        'stat': stat,
+        'p_value': p,
+        'alpha': alpha
+    }
+    return result
+
+def all_the_stats(df, override_categorical=[], override_numerical=[]):
+    # Initialize the dictionary that will be iteratively built
+    out = {}
+    # Separate columns into categorical and numerical
+    coltype = get_column_types(df, override_categorical=override_categorical)
+    
+    # Loop through each categorical column
+    for col in coltype['cat']:
+        if len(df[col].value_counts()) > 1:
+            cold = out[col] = {}
+            
+            # Run a chi2 test on every other categorical column
+            this = cold['chi2'] = {}
+            for target in coltype['cat']:
+                if len(df[target].value_counts()) > 1:
+                    if target != col:
+                        this[target] = chi2_test(df[col], df[target])
+            # Run an anova test on every numerical column
+            this = cold['anova'] = {}
+            for target in coltype['num']:
+                if target != col:
+                    anova = this[target] = anova_variance_in_target_for_cat(df, target, col)
+                    # If we reject the null run a ttest to determine which categories are significant
+                    if anova['reject'] == True:
+                        anova['ttest'] = ttest_target_for_each_cat(df, target, col)
+
+    # The loop through each numerical column
+    for col in coltype['num']:
+        
+        cold = out[col] = {}
+        
+        # Repeat the Anova tests on each categorical column for readability
+        this = cold['anova'] = {}
+        for target in coltype['cat']:
+            if len(df[target].value_counts()) > 1:
+                if target != col:
+                    anova = this[target] = anova_variance_in_target_for_cat(df, col, target)
+                    if anova['reject'] == True:
+                        anova['ttest'] = ttest_target_for_each_cat(df, col, target)
+
+        # Run a correlation test for every other numerical column
+        this = cold['spearmanr'] = {}
+        for target in coltype['num']:
+            if target != col:
+                this[target] = spearman_correllation_test(df, target, col)
+
+    return out
+
+def pop_unrejected(results):
+    for column, tests in results.items():
+        for test, targets in tests.items():
+            to_pop = []
+            for target, result in targets.items():
+                if result['reject'] == False:
+                    to_pop.append(target)
+            for target in to_pop:
+                del targets[target]
+    return results
+
+import json
+class CustomJSONizer(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.bool_):
+            return super().encode(bool(obj))
+        
+        elif isinstance(obj, np.ndarray):
+            return super().encode(str(obj))
+        
+        elif isinstance(obj, pd.DataFrame):
+            return super().encode(obj.to_dict())
+
+        else:
+            return super().default(obj)
+
+def prettify(obj):
+    return json.dumps(obj, cls=CustomJSONizer, indent=2) 
 
 
 #####################################################
@@ -467,11 +564,22 @@ def find_k(df, cluster_vars, k_range, seed=SEED):
     return k_comparisons_df
 
 
+def upsample_target(df, target, val):
+    from sklearn.utils import resample
+    # Upsample the dfing data to balance a class imbalance
+    minority_upsample = resample( df[df[target] == val],   #DF of samples to replicate
+                                replace = True,         #Implements resampling with replacement, Default=True
+                                n_samples = len(df[df[target]!=val])-1, #Number of samples to produce
+                                random_state= 8         #Random State seed for reproducibility
+                                )
+    #Then glue the upsample to the original
+    return pd.concat([minority_upsample, df[df[target]!=val]])
+
 #####################################################
 #                  MODEL EVALUATION                 #
 #####################################################
 
-class BaselineRegressor:
+class BaselineModel:
     """ A simple class meant to mimic sklearn's modeling methods so that I can standardize my workflow.
     Assumes that you are fitting a single predictor.  
     For multiple predictors you will need multiple instances of this class.
@@ -479,22 +587,31 @@ class BaselineRegressor:
     TODO: Handle multi-dimensional predictors
     TODO: Handle saving feature names
     """
-    def __init__(self):
-        """This isn't needed, but I'm leaving this here to remind myself that it's a thing."""
-        pass
-
+    def __init__(self, method='mean'):
+        """Initializes the model with the aggregation function defined, which will be used for fitting later."""
+        self.method = method
 
     def fit(self, y):
-        """Calculates the mean for the target variable and assigns it to this instance."""
+        """Calculates the baseline for the target variable and assigns it to this instance."""
         if len(y.shape) == 1:
-            self.baseline = y.mean()
+            self.baseline = y.agg(func=self.method)[0]
+            self.baseline_proba = (y == self.baseline).mean()
         else:
              raise ValueError('Expected a 1 dimensional array.')
 
     def predict(self, x):
-        """Always predicts the mean value."""
+        """Always predicts the baseline value."""
         n_predictions = len(x)
         return np.full((n_predictions), self.baseline)
+
+    def predict_proba(self, x, invert=False):
+        """For classification problems, a probability prediction."""
+        n_predictions = len(x)
+
+        if not invert:
+            return np.full((n_predictions), self.baseline_proba)
+        else:
+            return np.full((n_predictions), 1- self.baseline_proba)
 
 def regression_metrics(actual: pd.Series, predicted: pd.Series) -> dict:
     """Standardises the evaluation of a model's metrics."""

@@ -2,13 +2,13 @@
 #               CONFIG VARIABLES                    #
 #####################################################
 
-ENVFILE = './env'
+ENVFILE = './env.py'
 CSV='./data.csv'
 
 SEED = 8
 
 DB= ''
-SQLquery ="""
+QUERY ="""
 
 """
 
