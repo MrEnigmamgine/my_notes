@@ -564,16 +564,7 @@ def find_k(df, cluster_vars, k_range, seed=SEED):
     return k_comparisons_df
 
 
-def upsample_target(df, target, val):
-    from sklearn.utils import resample
-    # Upsample the dfing data to balance a class imbalance
-    minority_upsample = resample( df[df[target] == val],   #DF of samples to replicate
-                                replace = True,         #Implements resampling with replacement, Default=True
-                                n_samples = len(df[df[target]!=val])-1, #Number of samples to produce
-                                random_state= 8         #Random State seed for reproducibility
-                                )
-    #Then glue the upsample to the original
-    return pd.concat([minority_upsample, df[df[target]!=val]])
+
 
 #####################################################
 #                  MODEL EVALUATION                 #

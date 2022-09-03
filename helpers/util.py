@@ -30,17 +30,3 @@ def format_float(x):
     """Limits a float to 2 digits."""
     return float("{:.2f}".format(x))
 
-def get_n_colors(n: int, palette='bright') -> list:
-    """Gets a list consisting of n colors."""
-    import seaborn as sns
-    colors = []
-    for i in range(n):
-        colors.append(sns.color_palette(palette=palette)[i])
-    return colors
-
-def cat_to_colors(series):
-    """Given a series, return a series of equal length consisting of colors."""
-    cats = series.value_counts().index.to_list()
-    colors = get_n_colors(len(cats))
-    x = series.apply(lambda x: colors[cats.index(x)])
-    return x

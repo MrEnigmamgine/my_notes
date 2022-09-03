@@ -21,21 +21,22 @@ def new_data():
     df = pd.read_sql(SQLQUERY, url)
     return df
 
-def get_data():
+def get_data(refresh=False):
     """Returns an uncleaned copy of the data from the CSV file defined in config.
     If the file does not exist, grabs a new copy and creates the file.
     Assumes the use of a SQL query.
     """
     filename = CSV
     # if file is available locally, read it
-    if os.path.isfile(filename):
-        return pd.read_csv(filename, index_col=0)
+    if os.path.isfile(filename) and not refresh:
+        return pd.read_csv(filename)
     # if file not available locally, acquire data from SQL database
     # and write it as csv locally for future use
     else:
         # read the SQL query into a dataframe
         df = new_data()
         # Write that dataframe to disk for later. Called "caching" the data for later.
-        df.to_csv(filename)
+        df.to_csv(filename, index=False)
         # Return the dataframe to the calling code
         return df  
+
