@@ -1,14 +1,29 @@
 import pandas as pd
-
 import nltk
-nltk.download('wordnet')
-nltk.download('omw-1.4')
-nltk.download('stopwords')
+
+# Ensuring required data is installed.
+try:
+    nltk.data.find('corpora/wordnet.zip')
+except:
+    nltk.download('wordnet')
+try:
+    nltk.data.find('corpora/omw-1.4.zip')
+except:
+    nltk.download('omw-1.4')
+try:
+    nltk.data.find('corpora/stopwords')
+except:
+    nltk.download('stopwords')
+try:
+    nltk.data.find('tokenizers/punkt')
+except:
+    nltk.download('punkt')
 
 toktok = nltk.tokenize.ToktokTokenizer()
 snowball = nltk.stem.SnowballStemmer('english')
 wordnet = nltk.stem.WordNetLemmatizer()
 stopwords = nltk.corpus.stopwords.words('english')
+punkt = nltk.tokenize.PunktSentenceTokenizer()
 
 def lemmatize(sentence, lemmatizer:object = wordnet) -> str:
     words = sentence.split(' ')
@@ -26,6 +41,11 @@ def word_tokenize(string:str, tokenizer:object = toktok) -> str:
     tokens =  tokenizer.tokenize(string)
     return ' '.join(tokens)
 
+def sent_tokenize(string:str, tokenizer:object = punkt) -> list:
+    """Requires punctuation"""
+    tokens =  tokenizer.tokenize(string)
+    return '\n\n'.join(tokens)
+
 def remove_stopwords(string:str, extra_words:list[str] = [], exclude_words:list[str] = []) -> str:
     tokens = string.split(' ')
     stopwords = nltk.corpus.stopwords.words('english')
@@ -34,7 +54,12 @@ def remove_stopwords(string:str, extra_words:list[str] = [], exclude_words:list[
     out = [word for word in tokens if not word in stopwords]
     return ' '.join(out)
 
-def basic_string_clean(string: str, strip=True, lower=True, normalize=True, drop_special=True, drop_punctuation=False) -> str:
+def basic_string_clean( string: str, 
+                        strip=True, 
+                        lower=True, 
+                        normalize=True, 
+                        drop_special=True, 
+                        drop_punctuation=True) -> str:
     """Returns the same string with the following alterations by default:
     - convert all chars to lowercase
     - maps charcters to fit within ASCII character set (converts accented chars to unaccented counterparts)
@@ -66,20 +91,51 @@ def basic_string_clean(string: str, strip=True, lower=True, normalize=True, drop
 
     return string
 
-def make_nlp_cols(series: pd.Series) -> pd.Series:
-    clean = series.apply(basic_string_clean, drop_punctuation=True)\
-        .apply(word_tokenize)\
-        .apply(remove_stopwords)
-    stemmed = clean.apply(stem)
-    lemmatized = clean.apply(lemmatize)
-    out = pd.concat([clean, stemmed, lemmatized], axis=1)
-    out.columns = ['cleaned','stemmed','lemmatized']
+def sanitize(document: str, **kwargs):
+    defaultKwargs = {
+        'strip': True, 
+        'lower': True, 
+        'normalize': True, 
+        'drop_special': True, 
+        'drop_punctuation': True,
+        'extra_words': [], 
+        'exclude_words': []
+    }
+    kwargs = { **defaultKwargs, **kwargs }
+
+    document = basic_string_clean(document,
+                                strip=kwargs['strip'], 
+                                lower=kwargs['lower'], 
+                                normalize=kwargs['normalize'], 
+                                drop_special=kwargs['drop_special'], 
+                                drop_punctuation=kwargs['drop_punctuation'])
+                            
+    document = word_tokenize(document)
+
+    document = remove_stopwords(    document,
+                                    extra_words=kwargs['extra_words'], 
+                                    exclude_words=kwargs['exclude_words'])
+
+    return document
+
+def make_ngrams(document, n):
+    if type(document) == pd.core.series.Series:
+        document = ' '.join(document)
+
+    words = document.split(' ')
+    ngrams =  list(nltk.ngrams(words, n))
+    ngrams = ['_'.join(ngram) for ngram in ngrams]
+    out = ' '.join(ngrams)
     return out
 
-def make_ngrams(words, n):
-    if type(words) == pd.core.series.Series:
-        input = ' '.join(words)
-    else:
-        input = words
-    output = input.split(' ')
-    return pd.Series(nltk.ngrams(output, n))
+def get_word_freq(document, max=None, min=None):
+    if type(document) != str:
+        document = ' '.join(document)
+    bag =  document.split(' ')
+    series = pd.Series(bag)
+    vc = series.value_counts()
+    if max:
+        vc = vc[vc <= max]
+    if min:
+        vc = vc[vc >= min]
+    return vc
