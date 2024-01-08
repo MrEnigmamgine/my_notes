@@ -5,7 +5,7 @@
     color: white; 
     border-radius: 15px; 
     padding: 15px; 
-    width: 55%">
+    width: 80%">
  <strong>Caution!</strong> <br>
   Models trained on biased data will reflect the bias of the humans that labeled it.  <br>
   Because this data was created by a small group, there is a high risk of bias.
@@ -23,7 +23,7 @@
     color: #31708f;
     background-color: #d9edf7;
     border-color: #bce8f1;
-    width: 55%;
+    width: 80%;
     ">
 
 **Heads Up!**  
