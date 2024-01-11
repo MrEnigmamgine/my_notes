@@ -1,4 +1,5 @@
 import math
+import cmath
 
 class si :
     """
@@ -49,9 +50,25 @@ def get_capacitive_reactance(capacitance,frequency):
     Xc = 1/(omega*capacitance)
     return complex(0,-Xc)
 
+def get_resonant_frequency(capacitance,reactance):
+    period = 2*math.pi
+    f = 1/(period*math.sqrt(capacitance*reactance))
+    return f
+
 def recipsumrecip(data):
     """Returns the reciprocal of the sum of reciprocals."""
     denom = 0
     for n in data:
         denom += 1/n
     return 1/denom
+
+def polar_format(complex_number):
+    magnitude, radians = cmath.polar(complex_number)
+    degrees = math.degrees(radians)
+    return (magnitude,degrees)
+
+def n2v(n):
+    """Returns a tuple vector from a real or complex number."""
+    x = n.real
+    y = n.imag
+    return (x,y)

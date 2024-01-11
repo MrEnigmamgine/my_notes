@@ -5,3 +5,4 @@ __pycache__
 *.csv
 scratch*
 *.wav
+obsidian/.obsidian/workspace*.json

@@ -1,0 +1,1 @@
+Simply, an electromotive force is any force that creates a [[volt|voltage]].
