@@ -1,5 +1,9 @@
 import math
 import cmath
+from matplotlib.ticker import EngFormatter
+
+# I usally wind up creating this object, so I'm placing it here.
+engFormat = EngFormatter()
 
 class si :
     """
@@ -50,10 +54,18 @@ def get_capacitive_reactance(capacitance,frequency):
     Xc = 1/(omega*capacitance)
     return complex(0,-Xc)
 
-def get_resonant_frequency(capacitance,reactance):
+def get_resonant_frequency(capacitance,inductance):
     period = 2*math.pi
-    f = 1/(period*math.sqrt(capacitance*reactance))
+    f = 1/(period*math.sqrt(capacitance*inductance))
     return f
+
+def get_exact_resonant_frequency(Rwinding,inductance,capacitance):
+    # Denominator is the same as the inexact formula
+    res_freq = get_resonant_frequency(inductance,capacitance)
+    # A fancy numerater accounts for winding resistance
+    numerator = math.sqrt(1-Rwinding**2*(capacitance/inductance))
+    exact_freq = numerator*res_freq
+    return exact_freq
 
 def recipsumrecip(data):
     """Returns the reciprocal of the sum of reciprocals."""
@@ -67,8 +79,13 @@ def polar_format(complex_number):
     degrees = math.degrees(radians)
     return (magnitude,degrees)
 
-def n2v(n):
+def num_to_vect(n):
     """Returns a tuple vector from a real or complex number."""
     x = n.real
     y = n.imag
     return (x,y)
+
+def vect_to_num(vect):
+    """Returns a tuple vector from a real or complex number."""
+    n = complex(vect[0],vect[1])
+    return (n)
