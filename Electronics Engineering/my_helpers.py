@@ -89,3 +89,7 @@ def vect_to_num(vect):
     """Returns a tuple vector from a real or complex number."""
     n = complex(vect[0],vect[1])
     return (n)
+
+def two_pi(n):
+    """Multiplies a number by 2*pi"""
+    return 2*math.pi*n
