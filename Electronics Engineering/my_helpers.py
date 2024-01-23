@@ -30,43 +30,6 @@ class si :
     z = 10**-21 # zepto
     y = 10**-24 # yocto
 
-def get_inductive_reactance(inductance,frequency):
-    """
-    Returns a complex number representing the impedance vector of an inductive reactance.
-    Variables:
-      inductance: The inductance measured in Hernies
-      frequency: The frequency measured in Hertz
-    """
-    period = 2*math.pi
-    omega = period*frequency
-    Xl = omega*inductance
-    return complex(0,Xl)
-
-def get_capacitive_reactance(capacitance,frequency):
-    """
-    Returns a complex number representing the impedance vector of an capacitive reactance.
-    Variables:
-      capacitance: The capacitance measured in Farads
-      frequency: The frequency measured in Hertz
-    """
-    period = 2*math.pi
-    omega = period*frequency
-    Xc = 1/(omega*capacitance)
-    return complex(0,-Xc)
-
-def get_resonant_frequency(capacitance,inductance):
-    period = 2*math.pi
-    f = 1/(period*math.sqrt(capacitance*inductance))
-    return f
-
-def get_exact_resonant_frequency(Rwinding,inductance,capacitance):
-    # Denominator is the same as the inexact formula
-    res_freq = get_resonant_frequency(inductance,capacitance)
-    # A fancy numerater accounts for winding resistance
-    numerator = math.sqrt(1-Rwinding**2*(capacitance/inductance))
-    exact_freq = numerator*res_freq
-    return exact_freq
-
 def recipsumrecip(data):
     """Returns the reciprocal of the sum of reciprocals."""
     denom = 0
@@ -93,3 +56,61 @@ def vect_to_num(vect):
 def two_pi(n):
     """Multiplies a number by 2*pi"""
     return 2*math.pi*n
+
+def over_sqrt_2(n):
+    """Divides a number by the square root of two"""
+    return n/math.sqrt(2)
+
+def get_inductive_reactance(inductance,frequency):
+    """
+    Returns a complex number representing the impedance vector of an inductive reactance.
+    Variables:
+      inductance: The inductance measured in Hernies
+      frequency: The frequency measured in Hertz
+    """
+    period = 2*math.pi
+    omega = period*frequency
+    Xl = omega*inductance
+    return complex(0,Xl)
+
+def get_capacitive_reactance(capacitance,frequency):
+    """
+    Returns a complex number representing the impedance vector of an capacitive reactance.
+    Variables:
+      capacitance: The capacitance measured in Farads
+      frequency: The frequency measured in Hertz
+    """
+    period = 2*math.pi
+    omega = period*frequency
+    Xc = 1/(omega*capacitance)
+    return complex(0,-Xc)
+
+####
+##  LC Formulae
+####
+
+def get_resonant_frequency(capacitance,inductance):
+    period = 2*math.pi
+    f = 1/(period*math.sqrt(capacitance*inductance))
+    return f
+
+def get_exact_resonant_frequency(Rwinding,inductance,capacitance):
+    # Denominator is the same as the inexact formula
+    res_freq = get_resonant_frequency(inductance,capacitance)
+    # A fancy numerater accounts for winding resistance
+    numerator = math.sqrt(1-Rwinding**2*(capacitance/inductance))
+    exact_freq = numerator*res_freq
+    return exact_freq
+
+def get_cutoff_freq_inductive(inductance,resistance):
+    return 1/two_pi(inductance/resistance)
+
+def get_cutoff_freq_capacitive(capacitance,resistance):
+    return 1/two_pi(capacitance*resistance)
+
+def get_bandwidth(Rwinding,inductance,capacitance):
+    inductive_reactance = inductance/(math.sqrt(inductance*capacitance))
+    quality_factor = inductive_reactance/Rwinding
+    resonant_frequency = get_exact_resonant_frequency(Rwinding,inductance,capacitance)
+    bandwidth = resonant_frequency/quality_factor
+    return bandwidth
